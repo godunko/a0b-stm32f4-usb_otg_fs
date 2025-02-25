@@ -1,0 +1,20 @@
+name = "a0b_stm32f401_usb"
+description = "A0B: STM32F401 USB Controller Driver"
+version = "0.1.0-dev"
+
+authors = ["Vadim Godunko"]
+maintainers = ["Vadim Godunko <vgodunko@gmail.com>"]
+maintainers-logins = ["godunko"]
+licenses = "Apache-2.0 WITH LLVM-exception"
+tags = ["a0b", "embedded", "usb", "stm32", "stm32f4", "stm32f401"]
+
+project-files = ["gnat/a0b_stm32f401_usb.gpr"]
+
+[configuration]
+generate_ada = false
+generate_c = false
+generate_gpr = true
+
+[[depends-on]]
+a0b_stm32f401_gpio = "*"
+a0b_usb = "*"
