@@ -28,6 +28,80 @@ package body A0B.USB.Controllers.STM32F401_OTG_FS is
 
    procedure On_RXFLVL (Self : in out OTG_FS_Device_Controller'Class);
 
+   B_Cycles : Natural := 0 with Export;
+   P_Cycles : Natural := 0 with Export;
+   X_Cycles : Natural := 0 with Export;
+
+   -----------
+   -- Do_IN --
+   -----------
+
+   overriding procedure Do_IN
+     (Self : in out OTG_FS_Device_Controller;
+      Data : A0B.Types.Arrays.Unsigned_8_Array)
+   is
+      use type A0B.Types.Unsigned_2;
+      use type A0B.Types.Unsigned_7;
+
+   begin
+      if not Self.Device_Peripheral.DOEPINT0.STUP then
+         raise Program_Error;
+      end if;
+
+      Self.Device_Peripheral.DIEPTSIZ0 := (others => <>);
+      Self.Device_Peripheral.DIEPTSIZ0 :=
+        (XFRSIZ => 18, PKTCNT => 1, others => <>);
+        --  (XFRSIZ => 18, PKTCNT => 3, others => <>);
+        --  (XFRSIZ => 0, PKTCNT => 1, others => <>);
+
+      declare
+         Aux : A0B.STM32F401.SVD.USB_OTG_FS.FS_DIEPCTL0_Register :=
+           Self.Device_Peripheral.FS_DIEPCTL0;
+
+      begin
+         Aux.CNAK := True;
+         Aux.EPENA := True;
+
+         Self.Device_Peripheral.FS_DIEPCTL0 := Aux;
+      end;
+
+      declare
+            FIFO : A0B.Types.Unsigned_32
+              with Import,
+                Volatile, Full_Access_Only,
+              Address => System.Storage_Elements.To_Address (16#5000_1000#);
+            B    : array (0 .. 4) of A0B.Types.Unsigned_32
+              with Import, Address => Data'Address;
+
+      begin
+         FIFO := B (0);
+         FIFO := B (1);
+         FIFO := B (2);
+         FIFO := B (3);
+         FIFO := B (4);
+      end;
+
+      --  while Self.Device_Peripheral.DIEPTSIZ0.XFRSIZ /= 0 loop
+      --     B_Cycles := @ + 1;
+      --  end loop;
+      --
+      --  while Self.Device_Peripheral.DIEPTSIZ0.PKTCNT /= 0 loop
+      --     P_Cycles := @ + 1;
+      --     null;
+      --  end loop;
+
+      while not Self.Device_Peripheral.DIEPINT0.XFRC loop
+         X_Cycles := @ + 1;
+         null;
+      end loop;
+
+      Self.Device_Peripheral.DOEPCTL0.CNAK := True;
+      Self.Device_Peripheral.DOEPCTL0.EPENA := True;
+      Self.Device_Peripheral.DOEPTSIZ0.PKTCNT := True;
+
+      --  raise Program_Error;
+   end Do_IN;
+
    ------------
    -- Enable --
    ------------
@@ -63,6 +137,12 @@ package body A0B.USB.Controllers.STM32F401_OTG_FS is
       --  packet size for a control endpoint depends on the enumeration speed.
 
       Self.Device_Peripheral.FS_DIEPCTL0.MPSIZ := 0;  --  00: 64 bytes
+      --  Self.Device_Peripheral.FS_DIEPCTL0.MPSIZ := 2#11#;  --  11: 8 bytes
+      Self.Device_Peripheral.FS_DIEPCTL0.SNAK := True;   --  XXX  ???
+
+      Self.Device_Peripheral.DOEPTSIZ0.XFRSIZ  := 64;
+      Self.Device_Peripheral.DOEPTSIZ0.PKTCNT  := True;
+      Self.Device_Peripheral.DOEPTSIZ0.STUPCNT := 3;
    end EP_Initialization_On_Enumeration_Completion;
 
    ------------------------------------
@@ -70,7 +150,10 @@ package body A0B.USB.Controllers.STM32F401_OTG_FS is
    ------------------------------------
 
    procedure EP_Initialization_On_USB_Reset
-     (Self : in out OTG_FS_Device_Controller'Class) is
+     (Self : in out OTG_FS_Device_Controller'Class)
+   is
+      use type A0B.Types.Unsigned_16;
+
    begin
       --  [RM0368] 22.17.5 Device programming model
       --
@@ -141,8 +224,11 @@ package body A0B.USB.Controllers.STM32F401_OTG_FS is
       end;
 
       Self.Global_Peripheral.FS_GRXFSIZ.RXFD := 256;
-
-      Self.Device_Peripheral.DOEPTSIZ0.STUPCNT := 3;
+      Self.Global_Peripheral.FS_GNPTXFSIZ_Device :=
+        (TX0FSA => 256, TX0FD => 64);
+      Self.Global_Peripheral.FS_DIEPTXF1 :=
+        (INEPTXSA => 256 + 64,
+         INEPTXFD => 256);
    end EP_Initialization_On_USB_Reset;
 
    ----------------
@@ -531,9 +617,6 @@ package body A0B.USB.Controllers.STM32F401_OTG_FS is
    -- On_RXFLVL --
    ---------------
 
-   type Setup_Buffer is array (0 .. 7) of A0B.Types.Unsigned_8 with Pack;
-
-   Buffer     : Setup_Buffer;
    Setup      : Boolean := False;
    Setup_Done : Boolean := False;
    SUPCNT     : Integer := Integer'Last;
@@ -578,7 +661,7 @@ package body A0B.USB.Controllers.STM32F401_OTG_FS is
             --  FIFO : Setup_Buffer with Import,
             --    Address => System.Storage_Elements.To_Address (16#5000_1000#);
             B    : array (0 .. 1) of A0B.Types.Unsigned_32
-              with Import, Address => Buffer'Address;
+              with Import, Address => Self.Setup_Buffer'Address;
 
          begin
             --  Buffer := FIFO;
@@ -601,7 +684,16 @@ package body A0B.USB.Controllers.STM32F401_OTG_FS is
 
          Setup_Done := True;
 
-         Status := GRXSTSRP_Device;
+         if Self.Device_Peripheral.DOEPTSIZ0.STUPCNT /= 2 then
+            raise Program_Error;
+         end if;
+
+         if not Self.Device_Peripheral.DOEPINT0.STUP then
+            raise Program_Error;
+         end if;
+
+         Self.Control_Endpoint.On_Setup_Request (Self.Setup_Buffer);
+         --  Status := GRXSTSRP_Device;
 
       else
 
