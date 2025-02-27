@@ -6,7 +6,6 @@
 
 pragma Ada_2022;
 
-with A0B.USB.Endpoints.Control;
 with Ada.Unchecked_Conversion;
 with System.Storage_Elements;
 
@@ -15,6 +14,7 @@ with A0B.STM32F401.GPIO.PIOA;
 with A0B.STM32F401.SVD.RCC;
 with A0B.STM32F401.USB_Lines;
 with A0B.Types;
+with A0B.USB.Endpoints.Control;
 
 package body A0B.USB.Controllers.STM32F401_OTG_FS is
 
@@ -44,8 +44,11 @@ package body A0B.USB.Controllers.STM32F401_OTG_FS is
 
    procedure On_USB_Reset (Self : in out OTG_FS_Device_Controller'Class);
 
+   procedure Initiate_IN0_Stall
+     (Self : in out OTG_FS_Device_Controller'Class);
+
    procedure Initiate_IN0_Acknowledge
-     (Self   : in out OTG_FS_Device_Controller'Class);
+     (Self : in out OTG_FS_Device_Controller'Class);
 
    procedure Initiate_IN0_Transfer
      (Self   : in out OTG_FS_Device_Controller'Class;
@@ -64,7 +67,8 @@ package body A0B.USB.Controllers.STM32F401_OTG_FS is
       IEP_Interrupt,
       IEP0_Interrupt,
       OEP_Interrupt,
-      OEP0_Interrupt);
+      OEP0_Interrupt,
+      Setup_Data);
 
    type Event_Record (Kind : Event_Kind := None) is record
       case Kind is
@@ -88,6 +92,9 @@ package body A0B.USB.Controllers.STM32F401_OTG_FS is
 
          when OEP0_Interrupt =>
             DOEPINT : A0B.STM32F401.SVD.USB_OTG_FS.DOEPINT_Register;
+
+         when Setup_Data =>
+            Data : A0B.USB.Endpoints.Control.Setup_Data_Buffer;
       end case;
    end record;
 
@@ -648,7 +655,7 @@ package body A0B.USB.Controllers.STM32F401_OTG_FS is
    ------------------------------
 
    procedure Initiate_IN0_Acknowledge
-     (Self   : in out OTG_FS_Device_Controller'Class) is
+     (Self : in out OTG_FS_Device_Controller'Class) is
    begin
       Self.Device_Peripheral.DIEPTSIZ0 :=
         (XFRSIZ => 0, PKTCNT => 0, others => <>);
@@ -664,6 +671,26 @@ package body A0B.USB.Controllers.STM32F401_OTG_FS is
          Self.Device_Peripheral.FS_DIEPCTL0 := Aux;
       end;
    end Initiate_IN0_Acknowledge;
+
+   ------------------------
+   -- Initiate_IN0_Stall --
+   ------------------------
+
+   procedure Initiate_IN0_Stall
+     (Self : in out OTG_FS_Device_Controller'Class) is
+   begin
+      declare
+         Aux : A0B.STM32F401.SVD.USB_OTG_FS.FS_DIEPCTL0_Register :=
+           Self.Device_Peripheral.FS_DIEPCTL0;
+
+      begin
+         Aux.STALL := True;
+         Aux.EPENA := False;
+         Aux.EPDIS := True;
+
+         Self.Device_Peripheral.FS_DIEPCTL0 := Aux;
+      end;
+   end Initiate_IN0_Stall;
 
    ---------------------------
    -- Initiate_IN0_Transfer --
@@ -1162,6 +1189,9 @@ package body A0B.USB.Controllers.STM32F401_OTG_FS is
             Self.Device_Peripheral.DOEPINT0 :=
               (STUP => True, Reserved_7_31 => 0, others => <>);
 
+            Last := @ + 1;
+            Log (Last) := (Setup_Data, Self.Setup_Buffer);
+
             declare
                Response : A0B.USB.Endpoints.Control.Response_Record;
 
@@ -1175,6 +1205,9 @@ package body A0B.USB.Controllers.STM32F401_OTG_FS is
 
                   when A0B.USB.Endpoints.Control.Acknowledge =>
                      Self.Initiate_IN0_Acknowledge;
+
+                  when A0B.USB.Endpoints.Control.Stall =>
+                     Self.Initiate_IN0_Stall;
 
                   when A0B.USB.Endpoints.Control.Data =>
                      Self.Initiate_IN0_Transfer
