@@ -6,9 +6,7 @@
 
 pragma Ada_2022;
 
-with A0B;
-with A0B.STM32F401.SVD;
-with A0B.USB;
+with A0B.USB.Endpoints.Control;
 with Ada.Unchecked_Conversion;
 with System.Storage_Elements;
 
@@ -41,6 +39,14 @@ package body A0B.USB.Controllers.STM32F401_OTG_FS is
    procedure On_RXFLVL (Self : in out OTG_FS_Device_Controller'Class);
 
    procedure On_USB_Reset (Self : in out OTG_FS_Device_Controller'Class);
+
+   procedure Initiate_IN0_Acknowledge
+     (Self   : in out OTG_FS_Device_Controller'Class);
+
+   procedure Initiate_IN0_Transfer
+     (Self   : in out OTG_FS_Device_Controller'Class;
+      Buffer : System.Address;
+      Size   : A0B.Types.Unsigned_16);
 
    function Active_Interrupts
      (Self : OTG_FS_Device_Controller'Class)
@@ -116,70 +122,70 @@ package body A0B.USB.Controllers.STM32F401_OTG_FS is
    -- Do_IN --
    -----------
 
-   overriding procedure Do_IN
-     (Self : in out OTG_FS_Device_Controller;
-      Data : A0B.Types.Arrays.Unsigned_8_Array)
-   is
-      use type A0B.Types.Unsigned_2;
-      use type A0B.Types.Unsigned_7;
-
-   begin
-      Self.Device_Peripheral.DIEPTSIZ0 := (others => <>);
-      Self.Device_Peripheral.DIEPTSIZ0 :=
-        (XFRSIZ => 18, PKTCNT => 1, others => <>);
-        --  (XFRSIZ => 18, PKTCNT => 3, others => <>);
-        --  (XFRSIZ => 0, PKTCNT => 1, others => <>);
-
-      declare
-         Aux : A0B.STM32F401.SVD.USB_OTG_FS.FS_DIEPCTL0_Register :=
-           Self.Device_Peripheral.FS_DIEPCTL0;
-
-      begin
-         Aux.CNAK := True;
-         Aux.EPENA := True;
-
-         Self.Device_Peripheral.FS_DIEPCTL0 := Aux;
-      end;
-
-      --  declare
-      --        FIFO : A0B.Types.Unsigned_32
-      --          with Import,
-      --            Volatile, Full_Access_Only,
-      --          Address => System.Storage_Elements.To_Address (16#5000_1000#);
-      --        B    : array (0 .. 4) of A0B.Types.Unsigned_32
-      --          with Import, Address => Data'Address;
-      --
-      --  begin
-      --     FIFO := B (0);
-      --     FIFO := B (1);
-      --     FIFO := B (2);
-      --     FIFO := B (3);
-      --     FIFO := B (4);
-      --  end;
-
-      --  while Self.Device_Peripheral.DIEPTSIZ0.XFRSIZ /= 0 loop
-      --     B_Cycles := @ + 1;
-      --  end loop;
-      --
-      --  while Self.Device_Peripheral.DIEPTSIZ0.PKTCNT /= 0 loop
-      --     P_Cycles := @ + 1;
-      --     null;
-      --  end loop;
-
-      --  while not Self.Device_Peripheral.DIEPINT0.XFRC loop
-      --     X_Cycles := @ + 1;
-      --     null;
-      --  end loop;
-      --
-      --  Self.Device_Peripheral.DOEPCTL0.CNAK := True;
-      --  Self.Device_Peripheral.DOEPCTL0.EPENA := True;
-      --  Self.Device_Peripheral.DOEPTSIZ0.PKTCNT := True;
-
-      Self.IN_Buffer := Data'Address;
-      Self.Device_Peripheral.DIEPEMPMSK.INEPTXFEM := 2#0001#;
-
-      --  raise Program_Error;
-   end Do_IN;
+   --  overriding procedure Do_IN
+   --    (Self : in out OTG_FS_Device_Controller;
+   --     Data : A0B.Types.Arrays.Unsigned_8_Array)
+   --  is
+   --     --  use type A0B.Types.Unsigned_2;
+   --     --  use type A0B.Types.Unsigned_7;
+   --
+   --  begin
+   --     Self.Device_Peripheral.DIEPTSIZ0 := (others => <>);
+   --     Self.Device_Peripheral.DIEPTSIZ0 :=
+   --       (XFRSIZ => 18, PKTCNT => 1, others => <>);
+   --       --  (XFRSIZ => 18, PKTCNT => 3, others => <>);
+   --       --  (XFRSIZ => 0, PKTCNT => 1, others => <>);
+   --
+   --     declare
+   --        Aux : A0B.STM32F401.SVD.USB_OTG_FS.FS_DIEPCTL0_Register :=
+   --          Self.Device_Peripheral.FS_DIEPCTL0;
+   --
+   --     begin
+   --        Aux.CNAK := True;
+   --        Aux.EPENA := True;
+   --
+   --        Self.Device_Peripheral.FS_DIEPCTL0 := Aux;
+   --     end;
+   --
+   --     --  declare
+   --     --        FIFO : A0B.Types.Unsigned_32
+   --     --          with Import,
+   --     --            Volatile, Full_Access_Only,
+   --     --          Address => System.Storage_Elements.To_Address (16#5000_1000#);
+   --     --        B    : array (0 .. 4) of A0B.Types.Unsigned_32
+   --     --          with Import, Address => Data'Address;
+   --     --
+   --     --  begin
+   --     --     FIFO := B (0);
+   --     --     FIFO := B (1);
+   --     --     FIFO := B (2);
+   --     --     FIFO := B (3);
+   --     --     FIFO := B (4);
+   --     --  end;
+   --
+   --     --  while Self.Device_Peripheral.DIEPTSIZ0.XFRSIZ /= 0 loop
+   --     --     B_Cycles := @ + 1;
+   --     --  end loop;
+   --     --
+   --     --  while Self.Device_Peripheral.DIEPTSIZ0.PKTCNT /= 0 loop
+   --     --     P_Cycles := @ + 1;
+   --     --     null;
+   --     --  end loop;
+   --
+   --     --  while not Self.Device_Peripheral.DIEPINT0.XFRC loop
+   --     --     X_Cycles := @ + 1;
+   --     --     null;
+   --     --  end loop;
+   --     --
+   --     --  Self.Device_Peripheral.DOEPCTL0.CNAK := True;
+   --     --  Self.Device_Peripheral.DOEPCTL0.EPENA := True;
+   --     --  Self.Device_Peripheral.DOEPTSIZ0.PKTCNT := True;
+   --
+   --     Self.IN_Buffer := Data'Address;
+   --     Self.Device_Peripheral.DIEPEMPMSK.INEPTXFEM := 2#0001#;
+   --
+   --     raise Program_Error;
+   --  end Do_IN;
 
    ------------
    -- Enable --
@@ -633,6 +639,72 @@ package body A0B.USB.Controllers.STM32F401_OTG_FS is
       end;
    end Initialize_Device;
 
+   ------------------------------
+   -- Initiate_IN0_Acknowledge --
+   ------------------------------
+
+   procedure Initiate_IN0_Acknowledge
+     (Self   : in out OTG_FS_Device_Controller'Class) is
+   begin
+      Self.Device_Peripheral.DIEPTSIZ0 :=
+        (XFRSIZ => 0, PKTCNT => 0, others => <>);
+
+      declare
+         Aux : A0B.STM32F401.SVD.USB_OTG_FS.FS_DIEPCTL0_Register :=
+           Self.Device_Peripheral.FS_DIEPCTL0;
+
+      begin
+         Aux.CNAK  := True;
+         Aux.EPENA := True;
+
+         Self.Device_Peripheral.FS_DIEPCTL0 := Aux;
+      end;
+   end Initiate_IN0_Acknowledge;
+
+   ---------------------------
+   -- Initiate_IN0_Transfer --
+   ---------------------------
+
+   procedure Initiate_IN0_Transfer
+     (Self   : in out OTG_FS_Device_Controller'Class;
+      Buffer : System.Address;
+      Size   : A0B.Types.Unsigned_16)
+   is
+      use type A0B.Types.Unsigned_16;
+
+      Packet_Size  : constant A0B.Types.Unsigned_16 :=
+        A0B.Types.Shift_Left
+          (64, Integer (Self.Device_Peripheral.FS_DIEPCTL0.MPSIZ));
+      Packet_Count : constant A0B.Types.Unsigned_16 :=
+        (Size + Packet_Size - 1) / Packet_Size;
+
+   begin
+      Self.IN_Buffer := Buffer;
+
+      Self.Device_Peripheral.DIEPTSIZ0 :=
+        (XFRSIZ => A0B.STM32F401.SVD.USB_OTG_FS.DIEPTSIZ0_XFRSIZ_Field (Size),
+         PKTCNT =>
+           A0B.STM32F401.SVD.USB_OTG_FS.DIEPTSIZ0_PKTCNT_Field (Packet_Count),
+         others => <>);
+
+      declare
+         Aux : A0B.STM32F401.SVD.USB_OTG_FS.FS_DIEPCTL0_Register :=
+           Self.Device_Peripheral.FS_DIEPCTL0;
+
+      begin
+         Aux.CNAK  := True;
+         Aux.EPENA := True;
+
+         Self.Device_Peripheral.FS_DIEPCTL0 := Aux;
+      end;
+
+      --  Self.Device_Peripheral.DOEPCTL0.CNAK := True;
+      --  Self.Device_Peripheral.DOEPCTL0.EPENA := True;
+      --  Self.Device_Peripheral.DOEPTSIZ0.PKTCNT := True;
+
+      Self.Device_Peripheral.DIEPEMPMSK.INEPTXFEM := 2#0001#;
+   end Initiate_IN0_Transfer;
+
    --------------------------
    -- Internal_Set_Address --
    --------------------------
@@ -643,24 +715,6 @@ package body A0B.USB.Controllers.STM32F401_OTG_FS is
    begin
       Self.Device_Peripheral.FS_DCFG.DAD :=
         A0B.STM32F401.SVD.USB_OTG_FS.FS_DCFG_DAD_Field (Address);
-
-      Self.Device_Peripheral.DIEPTSIZ0 :=
-        (XFRSIZ => 0, PKTCNT => 0, others => <>);
-        --  (XFRSIZ => 18, PKTCNT => 3, others => <>);
-        --  (XFRSIZ => 0, PKTCNT => 1, others => <>);
-
-      declare
-         Aux : A0B.STM32F401.SVD.USB_OTG_FS.FS_DIEPCTL0_Register :=
-           Self.Device_Peripheral.FS_DIEPCTL0;
-
-      begin
-         Aux.CNAK := True;
-         Aux.EPENA := True;
-
-         Self.Device_Peripheral.FS_DIEPCTL0 := Aux;
-      end;
---
---        raise Program_Error;
    end Internal_Set_Address;
 
    -------------------------
@@ -1104,7 +1158,25 @@ package body A0B.USB.Controllers.STM32F401_OTG_FS is
             Self.Device_Peripheral.DOEPINT0 :=
               (STUP => True, Reserved_7_31 => 0, others => <>);
 
-            Self.Control_Endpoint.On_Setup_Request (Self.Setup_Buffer);
+            declare
+               Response : A0B.USB.Endpoints.Control.Response_Record;
+
+            begin
+               Self.Control_Endpoint.On_Setup_Request
+                 (Self.Setup_Buffer, Response);
+
+               case Response.Kind is
+                  when A0B.USB.Endpoints.Control.Not_Acknowledge =>
+                     raise Program_Error;
+
+                  when A0B.USB.Endpoints.Control.Acknowledge =>
+                     Self.Initiate_IN0_Acknowledge;
+
+                  when A0B.USB.Endpoints.Control.Data =>
+                     Self.Initiate_IN0_Transfer
+                       (Response.Buffer, Response.Size);
+               end case;
+            end;
          end if;
 
          --  if Self.Device_Peripheral.DOEPINT0.OTEPDIS then

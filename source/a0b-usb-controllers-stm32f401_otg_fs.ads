@@ -39,9 +39,9 @@ private
 
    procedure On_Interrupt (Self : in out OTG_FS_Device_Controller'Class);
 
-   overriding procedure Do_IN
-     (Self : in out OTG_FS_Device_Controller;
-      Data : A0B.Types.Arrays.Unsigned_8_Array);
+   --  overriding procedure Do_IN
+   --    (Self : in out OTG_FS_Device_Controller;
+   --     Data : A0B.Types.Arrays.Unsigned_8_Array);
 
    overriding procedure Internal_Set_Address
      (Self    : in out OTG_FS_Device_Controller;
