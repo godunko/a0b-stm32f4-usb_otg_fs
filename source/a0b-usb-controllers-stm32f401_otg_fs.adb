@@ -633,6 +633,36 @@ package body A0B.USB.Controllers.STM32F401_OTG_FS is
       end;
    end Initialize_Device;
 
+   --------------------------
+   -- Internal_Set_Address --
+   --------------------------
+
+   overriding procedure Internal_Set_Address
+     (Self    : in out OTG_FS_Device_Controller;
+      Address : Address_Field_Type) is
+   begin
+      Self.Device_Peripheral.FS_DCFG.DAD :=
+        A0B.STM32F401.SVD.USB_OTG_FS.FS_DCFG_DAD_Field (Address);
+
+      Self.Device_Peripheral.DIEPTSIZ0 :=
+        (XFRSIZ => 0, PKTCNT => 0, others => <>);
+        --  (XFRSIZ => 18, PKTCNT => 3, others => <>);
+        --  (XFRSIZ => 0, PKTCNT => 1, others => <>);
+
+      declare
+         Aux : A0B.STM32F401.SVD.USB_OTG_FS.FS_DIEPCTL0_Register :=
+           Self.Device_Peripheral.FS_DIEPCTL0;
+
+      begin
+         Aux.CNAK := True;
+         Aux.EPENA := True;
+
+         Self.Device_Peripheral.FS_DIEPCTL0 := Aux;
+      end;
+--
+--        raise Program_Error;
+   end Internal_Set_Address;
+
    -------------------------
    -- On_Enumeration_Done --
    -------------------------
@@ -1252,35 +1282,5 @@ package body A0B.USB.Controllers.STM32F401_OTG_FS is
    begin
       Self.EP_Initialization_On_USB_Reset;
    end On_USB_Reset;
-
-   -----------------
-   -- Set_Address --
-   -----------------
-
-   overriding procedure Set_Address
-     (Self    : in out OTG_FS_Device_Controller;
-      Address : Address_Field_Type) is
-   begin
-      Self.Device_Peripheral.FS_DCFG.DAD :=
-        A0B.STM32F401.SVD.USB_OTG_FS.FS_DCFG_DAD_Field (Address);
-
-      Self.Device_Peripheral.DIEPTSIZ0 :=
-        (XFRSIZ => 0, PKTCNT => 0, others => <>);
-        --  (XFRSIZ => 18, PKTCNT => 3, others => <>);
-        --  (XFRSIZ => 0, PKTCNT => 1, others => <>);
-
-      declare
-         Aux : A0B.STM32F401.SVD.USB_OTG_FS.FS_DIEPCTL0_Register :=
-           Self.Device_Peripheral.FS_DIEPCTL0;
-
-      begin
-         Aux.CNAK := True;
-         Aux.EPENA := True;
-
-         Self.Device_Peripheral.FS_DIEPCTL0 := Aux;
-      end;
---
---        raise Program_Error;
-   end Set_Address;
 
 end A0B.USB.Controllers.STM32F401_OTG_FS;

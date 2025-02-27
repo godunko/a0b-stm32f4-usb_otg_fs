@@ -43,7 +43,7 @@ private
      (Self : in out OTG_FS_Device_Controller;
       Data : A0B.Types.Arrays.Unsigned_8_Array);
 
-   overriding procedure Set_Address
+   overriding procedure Internal_Set_Address
      (Self    : in out OTG_FS_Device_Controller;
       Address : Address_Field_Type);
 
