@@ -55,6 +55,12 @@ package body A0B.USB.Controllers.STM32F401_OTG_FS is
       Buffer : System.Address;
       Size   : A0B.Types.Unsigned_16);
 
+   procedure Write_FIFO (Self : in out OTG_FS_Device_Controller'Class);
+   --  Copy data from IN buffer into FIFO.
+   --
+   --  Implementation reads data from the memory as bytes, construct words and
+   --  writes them to FIFO. Thus, data can use any alignment.
+
    function Active_Interrupts
      (Self : OTG_FS_Device_Controller'Class)
       return A0B.STM32F401.SVD.USB_OTG_FS.FS_GINTSTS_Register;
@@ -98,7 +104,7 @@ package body A0B.USB.Controllers.STM32F401_OTG_FS is
       end case;
    end record;
 
-   Log  : array (1 .. 100) of Event_Record;
+   Log  : array (1 .. 200) of Event_Record;
    Last : Natural := 0;
 
    B_Cycles : Natural := 0 with Export;
@@ -337,9 +343,9 @@ package body A0B.USB.Controllers.STM32F401_OTG_FS is
 
       Self.Global_Peripheral.FS_GRXFSIZ.RXFD := 256;
       Self.Global_Peripheral.FS_GNPTXFSIZ_Device :=
-        (TX0FSA => 256, TX0FD => 64);
+        (TX0FSA => 256, TX0FD => 128);
       Self.Global_Peripheral.FS_DIEPTXF1 :=
-        (INEPTXSA => 256 + 64,
+        (INEPTXSA => 256 + 128,
          INEPTXFD => 256);
    end EP_Initialization_On_USB_Reset;
 
@@ -711,6 +717,7 @@ package body A0B.USB.Controllers.STM32F401_OTG_FS is
 
    begin
       Self.IN_Buffer := Buffer;
+      Self.IN_Size   := Size;
 
       Self.Device_Peripheral.DIEPTSIZ0 :=
         (XFRSIZ => A0B.STM32F401.SVD.USB_OTG_FS.DIEPTSIZ0_XFRSIZ_Field (Size),
@@ -729,11 +736,13 @@ package body A0B.USB.Controllers.STM32F401_OTG_FS is
          Self.Device_Peripheral.FS_DIEPCTL0 := Aux;
       end;
 
+      Self.Write_FIFO;
+
       --  Self.Device_Peripheral.DOEPCTL0.CNAK := True;
       --  Self.Device_Peripheral.DOEPCTL0.EPENA := True;
       --  Self.Device_Peripheral.DOEPTSIZ0.PKTCNT := True;
 
-      Self.Device_Peripheral.DIEPEMPMSK.INEPTXFEM := 2#0001#;
+      --  Self.Device_Peripheral.DIEPEMPMSK.INEPTXFEM := 2#0001#;
    end Initiate_IN0_Transfer;
 
    --------------------------
@@ -795,7 +804,11 @@ package body A0B.USB.Controllers.STM32F401_OTG_FS is
          end if;
 
          if Self.Device_Peripheral.DIEPINT0.EPDISD then
-            raise Program_Error;
+            Self.Device_Peripheral.DIEPINT0 :=
+              (EPDISD => True, TXFE => False, others => <>);
+
+            --  Endpoint was disabled by application, it is the case when STALL
+            --  answer is sent. So, nothing to do.
          end if;
 
          if Self.Device_Peripheral.DIEPINT0.TOC then
@@ -824,28 +837,15 @@ package body A0B.USB.Controllers.STM32F401_OTG_FS is
 
                --  else
                --     Sent := True;
-                  Self.Device_Peripheral.FS_DIEPCTL0.CNAK := True;
+                  --  Self.Device_Peripheral.FS_DIEPCTL0.CNAK := True;
                --  end if;
                raise Program_Error;
             end if;
 
-      declare
-            FIFO : A0B.Types.Unsigned_32
-              with Import,
-                Volatile, Full_Access_Only,
-              Address => System.Storage_Elements.To_Address (16#5000_1000#);
-            B    : array (0 .. 4) of A0B.Types.Unsigned_32
-              with Import, Address => Self.IN_Buffer;
-
-      begin
-         FIFO := B (0);
-         FIFO := B (1);
-         FIFO := B (2);
-         FIFO := B (3);
-         FIFO := B (4);
-      end;
+            Self.Write_FIFO;
 
             Self.IN_Buffer := System.Null_Address;
+            Self.IN_Size   := 0;
             Self.Device_Peripheral.DIEPEMPMSK.INEPTXFEM := 2#0000#;
          end if;
 
@@ -1395,5 +1395,90 @@ package body A0B.USB.Controllers.STM32F401_OTG_FS is
    begin
       Self.EP_Initialization_On_USB_Reset;
    end On_USB_Reset;
+
+   ----------------
+   -- Write_FIFO --
+   ----------------
+
+   procedure Write_FIFO (Self : in out OTG_FS_Device_Controller'Class) is
+      use type A0B.Types.Unsigned_32;
+      use type System.Storage_Elements.Storage_Offset;
+
+      FIFO : A0B.Types.Unsigned_32
+        with Import,
+             Volatile,
+             Full_Access_Only,
+             Address => System.Storage_Elements.To_Address (16#5000_1000#);
+
+      Count   : A0B.Types.Unsigned_32 :=
+        A0B.Types.Unsigned_32 (Self.IN_Size) / 4;
+      Bytes   : A0B.Types.Unsigned_32 :=
+        A0B.Types.Unsigned_32 (Self.IN_Size) mod 4;
+      Pointer : System.Address := Self.IN_Buffer;
+
+   begin
+      loop
+         exit when Count = 0;
+
+         declare
+            B0 : A0B.Types.Unsigned_8 with Import, Address => Pointer + 0;
+            B1 : A0B.Types.Unsigned_8 with Import, Address => Pointer + 1;
+            B2 : A0B.Types.Unsigned_8 with Import, Address => Pointer + 2;
+            B3 : A0B.Types.Unsigned_8 with Import, Address => Pointer + 3;
+
+         begin
+            FIFO :=
+              A0B.Types.Shift_Left (A0B.Types.Unsigned_32 (B0), 0)
+                or A0B.Types.Shift_Left (A0B.Types.Unsigned_32 (B1), 8)
+                or A0B.Types.Shift_Left (A0B.Types.Unsigned_32 (B2), 16)
+                or A0B.Types.Shift_Left (A0B.Types.Unsigned_32 (B3), 24);
+         end;
+
+         Count   := @ - 1;
+         Pointer := @ + 4;
+      end loop;
+
+      if Bytes /= 0 then
+         declare
+            Word : A0B.Types.Unsigned_32 := 0;
+
+         begin
+            declare
+               B : A0B.Types.Unsigned_8 with Import, Address => Pointer;
+
+            begin
+               Word    := A0B.Types.Unsigned_32 (B);
+               Pointer := @ + 1;
+               Bytes   := @ - 1;
+            end;
+
+            if Bytes /= 0 then
+               declare
+                  B : A0B.Types.Unsigned_8 with Import, Address => Pointer;
+
+               begin
+                  Word    :=
+                    @ or A0B.Types.Shift_Left (A0B.Types.Unsigned_32 (B), 8);
+                  Pointer := @ + 1;
+                  Bytes   := @ - 1;
+               end;
+            end if;
+
+            if Bytes /= 0 then
+               declare
+                  B : A0B.Types.Unsigned_8 with Import, Address => Pointer;
+
+               begin
+                  Word    :=
+                    @ or A0B.Types.Shift_Left (A0B.Types.Unsigned_32 (B), 16);
+                  Pointer := @ + 1;
+                  Bytes   := @ - 1;
+               end;
+            end if;
+
+            FIFO := Word;
+         end;
+      end if;
+   end Write_FIFO;
 
 end A0B.USB.Controllers.STM32F401_OTG_FS;

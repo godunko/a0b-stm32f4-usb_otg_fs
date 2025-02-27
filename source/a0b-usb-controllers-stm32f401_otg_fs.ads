@@ -35,6 +35,7 @@ private
    is limited new Abstract_Device_Controller with record
       Setup_Buffer : A0B.USB.Endpoints.Control.Setup_Data_Buffer;
       IN_Buffer    : System.Address;
+      IN_Size      : A0B.Types.Unsigned_16;
    end record;
 
    procedure On_Interrupt (Self : in out OTG_FS_Device_Controller'Class);
