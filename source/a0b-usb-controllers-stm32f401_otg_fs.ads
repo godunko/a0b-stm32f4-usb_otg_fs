@@ -43,8 +43,4 @@ private
    --    (Self : in out OTG_FS_Device_Controller;
    --     Data : A0B.Types.Arrays.Unsigned_8_Array);
 
-   overriding procedure Internal_Set_Address
-     (Self    : in out OTG_FS_Device_Controller;
-      Address : Address_Field_Type);
-
 end A0B.USB.Controllers.STM32F401_OTG_FS;

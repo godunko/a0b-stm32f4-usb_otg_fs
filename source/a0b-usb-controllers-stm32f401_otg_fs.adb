@@ -22,6 +22,10 @@ package body A0B.USB.Controllers.STM32F401_OTG_FS is
 
    procedure Initialize_Device (Self : in out OTG_FS_Device_Controller'Class);
 
+   procedure Internal_Set_Address
+     (Self    : in out OTG_FS_Device_Controller'Class;
+      Address : Address_Field_Type);
+
    procedure EP_Initialization_On_USB_Reset
      (Self : in out OTG_FS_Device_Controller'Class);
 
@@ -709,8 +713,8 @@ package body A0B.USB.Controllers.STM32F401_OTG_FS is
    -- Internal_Set_Address --
    --------------------------
 
-   overriding procedure Internal_Set_Address
-     (Self    : in out OTG_FS_Device_Controller;
+   procedure Internal_Set_Address
+     (Self    : in out OTG_FS_Device_Controller'Class;
       Address : Address_Field_Type) is
    begin
       Self.Device_Peripheral.FS_DCFG.DAD :=
@@ -1175,6 +1179,10 @@ package body A0B.USB.Controllers.STM32F401_OTG_FS is
                   when A0B.USB.Endpoints.Control.Data =>
                      Self.Initiate_IN0_Transfer
                        (Response.Buffer, Response.Size);
+
+                  when A0B.USB.Endpoints.Control.Set_Address =>
+                     Self.Initiate_IN0_Acknowledge;
+                     Self.Internal_Set_Address (Response.Address);
                end case;
             end;
          end if;
