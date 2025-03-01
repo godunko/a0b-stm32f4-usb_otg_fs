@@ -9,7 +9,6 @@ pragma Ada_2022;
 with Ada.Unchecked_Conversion;
 with System.Storage_Elements;
 
---  with A0B.ARMv7M.SCS.DWT;
 with A0B.ARMv7M.Profiling_Utilities;
 with A0B.ARMv7M.NVIC_Utilities;
 with A0B.STM32F401.GPIO.PIOA;
@@ -582,8 +581,10 @@ package body A0B.USB.Controllers.STM32F401_OTG_FS is
          Aux.EPTYP          := 2#10#;  --  10: Bulk
          Aux.SNPM           := False;  --  Snoop mode disabled
          Aux.Stall          := False;
-         Aux.CNAK           := True;   --  Clear NAK
-         Aux.SNAK           := False;
+         --  Aux.CNAK           := True;   --  Clear NAK
+         --  Aux.SNAK           := False;
+         Aux.CNAK           := False;
+         Aux.SNAK           := True;   --  Set NAK
          Aux.SD0PID_SEVNFRM := False;
          Aux.SODDFRM        := False;
          Aux.EPDIS          := False;  --  '0' has no effect on the bit value
@@ -1475,11 +1476,11 @@ package body A0B.USB.Controllers.STM32F401_OTG_FS is
                Self.Device_Peripheral.DIEPEMPMSK.INEPTXFEM := @ and 2#1101#;
             end if;
 
-               --  XXX Why?
-
-            if Self.Device_Peripheral.DIEPINT1.ITTXFE then
-               raise Program_Error;
-            end if;
+            --     --  XXX Why?
+            --
+            --  if Self.Device_Peripheral.DIEPINT1.ITTXFE then
+            --     raise Program_Error;
+            --  end if;
             --  --  Self.IN_Buffer := System.Null_Address;
             --  --  Self.IN_Size   := 0;
             --  --  Self.Device_Peripheral.DIEPEMPMSK.INEPTXFEM := 2#0000#;
@@ -1869,6 +1870,8 @@ package body A0B.USB.Controllers.STM32F401_OTG_FS is
          raise Program_Error;
       end if;
 
+      --  EP2
+
       if (Status and 2#0100#) /= 0 then
          Logger.OEP2_Interrupt (Self.Device_Peripheral.DOEPINT2);
 
@@ -1878,9 +1881,20 @@ package body A0B.USB.Controllers.STM32F401_OTG_FS is
             Self.Device_Peripheral.DOEPINT2 :=
               (XFRC => True, Reserved_7_31 => 0, others => <>);
 
-            --  raise Program_Error;
+            declare
+               Aux : A0B.STM32F401.SVD.USB_OTG_FS.DOEPCTL_Register :=
+                 Self.Device_Peripheral.DOEPCTL2;
 
-            Self.Endpoint_2.On_Bulk_Out;
+            begin
+               --  Set sending of NAK to any future OUT packages, till
+               --  application starts next receive OUT operation.
+
+               Aux.SNAK := True;
+
+               Self.Device_Peripheral.DOEPCTL2 := Aux;
+            end;
+
+            A0B.Callbacks.Emit_Once (Self.EP2.OUT_Callback);
          end if;
 
          if Self.Device_Peripheral.DOEPINT2.EPDISD then
@@ -2050,7 +2064,9 @@ package body A0B.USB.Controllers.STM32F401_OTG_FS is
                   raise Program_Error;
 
                else
-                  Self.Endpoint_2.Size := A0B.Types.Unsigned_32 (Status.BCNT);
+                  Self.EP2.OUT_Transfer.Transferred :=
+                    A0B.Types.Unsigned_32 (Status.BCNT);
+                  --  Self.Endpoint_2.Size := A0B.Types.Unsigned_32 (Status.BCNT);
                   Self.Read_FIFO;
                   --
                   --  Self.Endpoint_2.On_Bulk_Out;
@@ -2106,10 +2122,13 @@ package body A0B.USB.Controllers.STM32F401_OTG_FS is
              Address => System.Storage_Elements.To_Address (16#5000_3000#);
 
       Count   : A0B.Types.Unsigned_32 :=
-        A0B.Types.Unsigned_32 (Self.Endpoint_2.Size) / 4;
+        Self.EP2.OUT_Transfer.Transferred / 4;
+        --  A0B.Types.Unsigned_32 (Self.Endpoint_2.Size) / 4;
       Bytes   : A0B.Types.Unsigned_32 :=
-        A0B.Types.Unsigned_32 (Self.Endpoint_2.Size) mod 4;
-      Pointer : System.Address := Self.Endpoint_2.Buffer'Address;
+        Self.EP2.OUT_Transfer.Transferred mod 4;
+        --  A0B.Types.Unsigned_32 (Self.Endpoint_2.Size) mod 4;
+      --  Pointer : System.Address := Self.Endpoint_2.Buffer'Address;
+      Pointer : System.Address := Self.EP2.OUT_Transfer.Address;
 
    begin
       loop
@@ -2178,7 +2197,39 @@ package body A0B.USB.Controllers.STM32F401_OTG_FS is
       On_Finished : A0B.Callbacks.Callback;
       Success     : in out Boolean) is
    begin
-      raise Program_Error;
+      if not Success then
+         return;
+      end if;
+
+      Self.OUT_Transfer := Buffer'Unchecked_Access;
+      Self.OUT_Callback := On_Finished;
+
+      Self.OUT_Transfer.Transferred := 0;
+      Self.OUT_Transfer.State       := A0B.Active;
+
+      declare
+         Aux : A0B.STM32F401.SVD.USB_OTG_FS.DOEPCTL_Register :=
+           Self.Controller.Device_Peripheral.DOEPCTL2;
+
+      begin
+         --  Aux.MPSIZ          := 64;
+         --  Aux.USBAEP         := True;
+         --  --  EONUM_DPID  --  Read-only
+         --  --  NAKSTS      --  Read-only
+         --  Aux.EPTYP          := 2#10#;  --  10: Bulk
+         --  Aux.SNPM           := False;  --  Snoop mode disabled
+         --  Aux.Stall          := False;
+         Aux.CNAK           := True;   --  Clear NAK
+         --  Aux.SNAK           := False;
+         --  Aux.SD0PID_SEVNFRM := False;
+         --  Aux.SODDFRM        := False;
+         --  Aux.EPDIS          := False;  --  '0' has no effect on the bit value
+         --  Aux.EPENA          := False;  --  '0' has no effect on the bit value
+         --  Aux.EPENA          := True;
+
+         Self.Controller.Device_Peripheral.DOEPCTL2 := Aux;
+      end;
+      --  raise Program_Error;
    end Receive_OUT;
 
    -----------------

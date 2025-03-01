@@ -33,7 +33,9 @@ private
    type OTG_FS_Endpoint
      (Controller : not null access OTG_FS_Device_Controller'Class)
    is limited new A0B.USB.Endpoints.Abstract_Endpoint with record
-      --  OUT_Transfer : access A0B.USB.Endpoints.Buffer_Descriptor;
+      OUT_Transfer : access A0B.USB.Endpoints.Buffer_Descriptor;
+      OUT_Callback : A0B.Callbacks.Callback;
+
       IN_Transfer  : access A0B.USB.Endpoints.Buffer_Descriptor;
       IN_Callback  : A0B.Callbacks.Callback;
    end record;
@@ -83,5 +85,13 @@ private
      (Self     : in out OTG_FS_Device_Controller;
       Endpoint : A0B.USB.Endpoint_Number)
       return not null access A0B.USB.Endpoints.Abstract_Endpoint'Class;
+
+   --  overriding function Class
+   --    (Self : OTG_FS_Device_Controller)
+   --     return not null access A0B.USB.Classes.Mass_Storage_Class'Class;
+   --
+   --  overriding procedure Set_Class
+   --    (Self  : OTG_FS_Device_Controller;
+   --     Class : not null access A0B.USB.Classes.Mass_Storage_Class'Class);
 
 end A0B.USB.Controllers.STM32F401_OTG_FS;
