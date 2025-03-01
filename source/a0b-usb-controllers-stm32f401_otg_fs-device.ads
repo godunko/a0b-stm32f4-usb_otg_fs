@@ -8,7 +8,7 @@ package A0B.USB.Controllers.STM32F401_OTG_FS.Device
   with Elaborate_Body
 is
 
-   OTG_FS : OTG_FS_Device_Controller
+   OTG_FS : aliased OTG_FS_Device_Controller
      (Global_Peripheral =>
         A0B.STM32F401.SVD.USB_OTG_FS.OTG_FS_GLOBAL_Periph'Access,
       Device_Peripheral =>
