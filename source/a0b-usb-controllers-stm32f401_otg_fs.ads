@@ -35,6 +35,7 @@ private
    is limited new A0B.USB.Endpoints.Abstract_Endpoint with record
       --  OUT_Transfer : access A0B.USB.Endpoints.Buffer_Descriptor;
       IN_Transfer  : access A0B.USB.Endpoints.Buffer_Descriptor;
+      IN_Callback  : A0B.Callbacks.Callback;
    end record;
 
    overriding procedure Transmit_IN

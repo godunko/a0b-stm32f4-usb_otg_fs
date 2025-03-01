@@ -1263,24 +1263,13 @@ package body A0B.USB.Controllers.STM32F401_OTG_FS is
       begin
          Aux.CNAK  := True;
          --  Aux.SD0PID_SEVNFRM := True;
-         Aux.SD0PID_SEVNFRM := False;
+         --  Aux.SD0PID_SEVNFRM := False;
          Aux.EPENA := True;
 
          Self.Device_Peripheral.DIEPCTL1 := Aux;
       end;
 
       Self.Device_Peripheral.DIEPEMPMSK.INEPTXFEM := @ or 2#0010#;
-
-      --  Self.Write_FIFO
-      --    (FIFO_Address   => EP1_FIFO_Address,
-      --     Buffer_Address => Buffer,
-      --     Length         => A0B.Types.Unsigned_32 (Size));
-
-      --  Self.Device_Peripheral.DOEPCTL0.CNAK := True;
-      --  Self.Device_Peripheral.DOEPCTL0.EPENA := True;
-      --  Self.Device_Peripheral.DOEPTSIZ0.PKTCNT := True;
-
-      --  Self.Device_Peripheral.DIEPEMPMSK.INEPTXFEM := 2#0001#;
    end Initiate_IN1_Transfer;
 
    --------------------------
@@ -1413,16 +1402,16 @@ package body A0B.USB.Controllers.STM32F401_OTG_FS is
 
          begin
 
-         if Self.Device_Peripheral.DIEPINT1.XFRC then
-            Self.Device_Peripheral.DIEPINT1 :=
-              (XFRC => True, TXFE => False, others => <>);
+            if Self.Device_Peripheral.DIEPINT1.XFRC then
+               --  XFRC: Transfer completed interrupt
 
-            --  XXX
-      --  Self.Device_Peripheral.DOEPTSIZ1.PKTCNT := True;
-      --  Self.Device_Peripheral.DOEPCTL1.CNAK := True;
-      --  Self.Device_Peripheral.DOEPCTL1.EPENA := True;
-            --  raise Program_Error;
-         end if;
+               Self.Device_Peripheral.DIEPINT1 :=
+                 (XFRC => True, TXFE => False, others => <>);
+
+               --  XXX Set transfer state and clear endpoint state?
+
+               A0B.Callbacks.Emit_Once (Self.EP1.IN_Callback);
+            end if;
 
          if Self.Device_Peripheral.DIEPINT1.EPDISD then
             Self.Device_Peripheral.DIEPINT1 :=
@@ -1475,19 +1464,6 @@ package body A0B.USB.Controllers.STM32F401_OTG_FS is
          then
             --  --  Read-only. TXFE
 
-            --  raise Program_Error;
-            --
-            --  if Self.IN_Buffer = System.Null_Address then
-            --     --  if Sent then
-            --        --  raise Program_Error;
-            --
-            --     --  else
-            --     --     Sent := True;
-            --        --  Self.Device_Peripheral.FS_DIEPCTL0.CNAK := True;
-            --     --  end if;
-            --     raise Program_Error;
-            --  end if;
-
             if Self.EP1.IN_Transfer.Size = 0 then
                raise Program_Error;
 
@@ -1499,18 +1475,7 @@ package body A0B.USB.Controllers.STM32F401_OTG_FS is
                Self.Device_Peripheral.DIEPEMPMSK.INEPTXFEM := @ and 2#1101#;
             end if;
 
-      --  declare
-      --     Aux : A0B.STM32F401.SVD.USB_OTG_FS.DIEPCTL1_Register :=
-      --       Self.Device_Peripheral.DIEPCTL1;
-      --
-      --  begin
-      --     Aux.CNAK  := True;
-      --     --  Aux.SD0PID_SEVNFRM := True;
-      --     Aux.SD0PID_SEVNFRM := False;
-      --     Aux.EPENA := True;
-      --
-      --     Self.Device_Peripheral.DIEPCTL1 := Aux;
-      --  end;
+               --  XXX Why?
 
             if Self.Device_Peripheral.DIEPINT1.ITTXFE then
                raise Program_Error;
@@ -2233,6 +2198,7 @@ package body A0B.USB.Controllers.STM32F401_OTG_FS is
       Logger.Transmit_IN1;
 
       Self.IN_Transfer := Buffer'Unchecked_Access;
+      Self.IN_Callback := On_Finished;
 
       Self.IN_Transfer.Transferred := 0;
       Self.IN_Transfer.State       := A0B.Active;
