@@ -4,11 +4,11 @@
 --  SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 --
 
-with "../config/a0b_stm32f4_usb_otg_fs_config.gpr";
+with "../config/a0b_stm32f4xx_usb_otg_fs_config.gpr";
 
 with "a0b_common.gpr";
 
-project A0B_STM32F4_USB_OTG_FS is
+project A0B_STM32F4xx_USB_OTG_FS is
 
    for Source_Dirs use ("../source");
    for Object_Dir use "../.objs/" & A0B_Common.Object_Dir_Suffix;
@@ -17,4 +17,4 @@ project A0B_STM32F4_USB_OTG_FS is
       for Switches ("Ada") use A0B_Common.Compiler_Switches_Ada;
    end Compiler;
 
-end A0B_STM32F4_USB_OTG_FS;
+end A0B_STM32F4xx_USB_OTG_FS;
