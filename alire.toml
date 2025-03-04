@@ -1,14 +1,14 @@
-name = "a0b_stm32f401_usb"
-description = "A0B: STM32F401 USB Controller Driver"
+name = "a0b_stm32f4_usb_otg_fs"
+description = "A0B: STM32F4 USB On-The-Go Full-Speed Controller Driver"
 version = "0.1.0-dev"
 
 authors = ["Vadim Godunko"]
 maintainers = ["Vadim Godunko <vgodunko@gmail.com>"]
 maintainers-logins = ["godunko"]
 licenses = "Apache-2.0 WITH LLVM-exception"
-tags = ["a0b", "embedded", "usb", "stm32", "stm32f4", "stm32f401"]
+tags = ["a0b", "embedded", "usb", "stm32", "stm32f4", "otg-fs"]
 
-project-files = ["gnat/a0b_stm32f401_usb.gpr"]
+project-files = ["gnat/a0b_stm32f4_usb_otg_fs.gpr"]
 
 [configuration]
 generate_ada = false
