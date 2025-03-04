@@ -37,7 +37,6 @@ private
       OUT_Callback : A0B.Callbacks.Callback;
 
       IN_Transfer  : access A0B.USB.Endpoints.Buffer_Descriptor;
-      IN_Pointer   : System.Address;
       IN_Callback  : A0B.Callbacks.Callback;
    end record;
 
